@@ -6,47 +6,15 @@ from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 from utils import *
 
-
 '''
 initialize data
 '''
-factors = pd.read_csv('./input/macroFactorDf20230202_1.csv', index_col=0, parse_dates=True)
-targets = pd.read_csv('./input/index.csv', index_col=0, parse_dates=True)
-data = pd.concat([factors, targets], axis=1)
-data = pd.concat([data.iloc[:-1].dropna(), data.iloc[-1:]], axis=0)
-assets = targets.columns.tolist()
-assets = ['000905.SH', 'NH0100.NHF', 'Bond']
-labels_dict = dict(zip(assets,[-1,0,1]))
-assets_dict = dict(zip([-1,0,1],assets))
-macro = factors.columns.tolist()
+data = DataGenerator()
+data.create_relative_labels()
+features = data.features
+assets = data.assets
+assets_dict = data.assets_dict
 
-# merge new features by first differencing
-data = data.join(data[macro].diff().rename(columns=dict(zip(macro, map(lambda x: f'd_{x}', macro)))))
-features = macro + list(map(lambda x: f'd_{x}', macro))
-data_dict = {'input': data.copy(), 'ret1d': data[assets].copy(), 'ret3d': data[assets].copy(),
-             'ret5d': data[assets].copy(),
-             'ret20d': data[assets].copy(),
-             'sign1d': data[assets].copy(), 'sign3d': data[assets].copy(), 'sign5d': data[assets].copy(),
-             'sign20d': data[assets].copy()}
-
-data.dropna(subset=features, how='any', inplace=True)
-dates = data.index.tolist()
-
-# generate label tag
-for asset in assets:
-    data_dict['ret1d'][asset] = data_dict['input'][asset].pct_change(1).shift(-1)
-    data_dict['ret3d'][asset] = data_dict['input'][asset].pct_change(3).shift(-3)
-    data_dict['ret5d'][asset] = data_dict['input'][asset].pct_change(5).shift(-5)
-    data_dict['ret20d'][asset] = data_dict['input'][asset].pct_change(20).shift(-20)
-data_dict['sign1d'] = data_dict['ret1d'].idxmax(axis=1).apply(lambda x: labels_dict.get(x, np.nan))
-data_dict['sign3d'] = data_dict['ret3d'].idxmax(axis=1).apply(lambda x: labels_dict.get(x, np.nan))
-data_dict['sign5d'] = data_dict['ret5d'].idxmax(axis=1).apply(lambda x: labels_dict.get(x, np.nan))
-data_dict['sign20d'] = data_dict['ret20d'].idxmax(axis=1).apply(lambda x: labels_dict.get(x, np.nan))
-
-# padding the index
-for k, v in data_dict.items():
-    data_dict[k] = v.loc[v.index.intersection(data.index)]
-del data
 
 def _regression(train_data: pd.DataFrame, predict_data: pd.DataFrame, indices: list,
                 model: LogisticRegression):
@@ -87,7 +55,7 @@ for label_day in [1, 3, 5, 20]:
             # split train and test dataset
             train_data_dict = {}
             test_data_dict = {}
-            for k, v in data_dict.items():
+            for k, v in data.data_dict.items():
                 train_data_dict[k], test_data_dict[k] = v.iloc[:int(len(v) * 0.7)], v.iloc[
                                                                                     int(len(v) * 0.7) - train_period:]
 
@@ -126,11 +94,11 @@ for label_day in [1, 3, 5, 20]:
                 logger.info('start evaluate on train set')
                 ## 回测表现
                 factor_ret = pd.Series(index=ans.index, name='ret', data=np.diagonal(
-                    ans.idxmax(axis=1).apply(lambda x: data_dict['ret1d'].loc[:, x]).loc[:,
+                    ans.idxmax(axis=1).apply(lambda x: data.data_dict['ret1d'].loc[:, x]).loc[:,
                     ans.index.tolist()])).dropna()
                 summary = daily_ret_statistic(factor_ret)
                 bt_lt.append(summary.iloc[-1])
-                net_value_plot(ans, factor_ret, data_dict, assets, benchmark=True, save=True,
+                net_value_plot(ans, factor_ret, data.data_dict, assets, benchmark=True, save=True,
                                name=f"{label_day}_{model}_{train_period}_{rolling_period}",
                                path='./output/regression_relative/backtest/')
                 ## 预测准确率
@@ -145,7 +113,6 @@ bt_res.columns = indices
 # acc_res.T.to_csv(f'output/regression_relative/acc.csv')
 bt_res.T.to_csv(f'output/regression_relative/bt.csv')
 
-
 '''
 TEST PART
 '''
@@ -159,14 +126,13 @@ for each in bt_res.T['sharpe'].nlargest(1).index.to_list():
         rolling_period = label_day
     train_data_dict = {}
     test_data_dict = {}
-    for k, v in data_dict.items():
+    for k, v in data.data_dict.items():
         train_data_dict[k], test_data_dict[k] = v.iloc[:int(len(v) * 0.7)], v.iloc[
                                                                             int(len(v) * 0.7) - train_period:]
 
         label_type = f'sign{label_day}d'
         model = 'LogisticRegression'
         m = LogisticRegression(class_weight='balanced')
-
 
     logger.info(
         f'label_day: {label_day}, model: {model}, train_period: {train_period},rolling_period: {rolling_period}\n '
@@ -179,7 +145,7 @@ for each in bt_res.T['sharpe'].nlargest(1).index.to_list():
         predict_data = test_data_dict['input'][features].iloc[predict_num:predict_num + rolling_period]
         indices = predict_data.index
         predict_data = predict_data.iloc[::label_day]
-        temp = _regression(reg_data, predict_data,indices,m)
+        temp = _regression(reg_data, predict_data, indices, m)
 
         if ans.empty:
             ans = temp
@@ -189,9 +155,9 @@ for each in bt_res.T['sharpe'].nlargest(1).index.to_list():
     ## 回测表现
     logger.info('start evaluate on test set')
     factor_ret = pd.Series(index=ans.index, name='ret', data=np.diagonal(
-        ans.idxmax(axis=1).apply(lambda x: data_dict['ret1d'].loc[:, x]).loc[:, ans.index.tolist()])).dropna()
+        ans.idxmax(axis=1).apply(lambda x: data.data_dict['ret1d'].loc[:, x]).loc[:, ans.index.tolist()])).dropna()
     summary = daily_ret_statistic(factor_ret)
     summary.to_csv(f'output/regression_relative/test_{label_day}_{model}_{train_period}_{rolling_period}.csv')
-    net_value_plot(ans, factor_ret, data_dict, assets, benchmark=True, save=True,
+    net_value_plot(ans, factor_ret, data.data_dict, assets, benchmark=True, save=True,
                    name=f"test_{label_day}_{model}_{train_period}_{rolling_period}",
                    path='./output/regression_relative/backtest/')

@@ -1,6 +1,3 @@
-'''
-use pct
-'''
 import warnings
 
 warnings.filterwarnings('ignore')
@@ -10,46 +7,13 @@ from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 from utils import *
-
 '''
 initialize data
 '''
-factors = pd.read_csv('./input/macroFactorDf20230202_1.csv', index_col=0, parse_dates=True)
-targets = pd.read_csv('./input/index.csv', index_col=0, parse_dates=True)
-data = pd.concat([factors, targets], axis=1)
-data = pd.concat([data.iloc[:-1].dropna(), data.iloc[-1:]], axis=0)
-assets = targets.columns.tolist()
-assets = ['000905.SH', 'NH0100.NHF', 'Bond']
-labels_dict = dict(zip(assets, [-1, 0, 1]))
-macro = factors.columns.tolist()
-
-# merge new features by first differencing
-data = data.join(data[macro].diff().rename(columns=dict(zip(macro, map(lambda x: f'd_{x}', macro)))))
-features = macro + list(map(lambda x: f'd_{x}', macro))
-data_dict = {'input': data.copy(), 'ret1d': data[assets].copy(), 'ret3d': data[assets].copy(),
-             'ret5d': data[assets].copy(),
-             'ret20d': data[assets].copy(),
-             'sign1d': data[assets].copy(), 'sign3d': data[assets].copy(), 'sign5d': data[assets].copy(),
-             'sign20d': data[assets].copy()}
-
-data.dropna(subset=features, how='any', inplace=True)
-dates = data.index.tolist()
-
-# generate label tag
-for asset in assets:
-    data_dict['ret1d'][asset] = data_dict['input'][asset].pct_change(1).shift(-1)
-    data_dict['ret3d'][asset] = data_dict['input'][asset].pct_change(3).shift(-3)
-    data_dict['ret5d'][asset] = data_dict['input'][asset].pct_change(5).shift(-5)
-    data_dict['ret20d'][asset] = data_dict['input'][asset].pct_change(20).shift(-20)
-    data_dict['sign1d'][asset] = np.sign(data_dict['ret1d'][asset])
-    data_dict['sign3d'][asset] = np.sign(data_dict['ret3d'][asset])
-    data_dict['sign5d'][asset] = np.sign(data_dict['ret5d'][asset])
-    data_dict['sign20d'][asset] = np.sign(data_dict['ret20d'][asset])
-
-# padding the index
-for k, v in data_dict.items():
-    data_dict[k] = v.loc[v.index.intersection(data.index)]
-del data
+data = DataGenerator()
+data.create_labels()
+features = data.features
+assets = data.assets
 
 
 def _regression(train_data: pd.DataFrame, predict_data: pd.DataFrame, asset: str, indices: list,
@@ -94,7 +58,7 @@ for label_day in [1, 3, 5, 20]:
             # split train and test dataset
             train_data_dict = {}
             test_data_dict = {}
-            for k, v in data_dict.items():
+            for k, v in data.data_dict.items():
                 train_data_dict[k], test_data_dict[k] = v.iloc[:int(len(v) * 0.7)], v.iloc[
                                                                                     int(len(v) * 0.7) - train_period:]
 
@@ -144,11 +108,11 @@ for label_day in [1, 3, 5, 20]:
                 logger.info('start evaluate on train set')
                 ## 回测表现
                 factor_ret = pd.Series(index=ans.index, name='ret', data=np.diagonal(
-                    ans.idxmax(axis=1).apply(lambda x: data_dict['ret1d'].loc[:, x]).loc[:,
+                    ans.idxmax(axis=1).apply(lambda x: data.data_dict['ret1d'].loc[:, x]).loc[:,
                     ans.index.tolist()])).dropna()
                 summary = daily_ret_statistic(factor_ret)
                 bt_lt.append(summary.iloc[-1])
-                net_value_plot(ans, factor_ret, data_dict, assets, benchmark=True, save=True,
+                net_value_plot(ans, factor_ret, data.data_dict, assets, benchmark=True, save=True,
                                name=f"{label_day}_{model}_{train_period}_{rolling_period}",
                                path='./output/regression/backtest/')
                 ## 预测准确率
@@ -177,7 +141,7 @@ for each in bt_res.T['sharpe'].nlargest(1).index.to_list():
         rolling_period = label_day
     train_data_dict = {}
     test_data_dict = {}
-    for k, v in data_dict.items():
+    for k, v in data.data_dict.items():
         train_data_dict[k], test_data_dict[k] = v.iloc[:int(len(v) * 0.7)], v.iloc[
                                                                             int(len(v) * 0.7) - train_period:]
 
@@ -221,9 +185,9 @@ for each in bt_res.T['sharpe'].nlargest(1).index.to_list():
     ## 回测表现
     logger.info('start evaluate on test set')
     factor_ret = pd.Series(index=ans.index, name='ret', data=np.diagonal(
-        ans.idxmax(axis=1).apply(lambda x: data_dict['ret1d'].loc[:, x]).loc[:, ans.index.tolist()])).dropna()
+        ans.idxmax(axis=1).apply(lambda x: data.data_dict['ret1d'].loc[:, x]).loc[:, ans.index.tolist()])).dropna()
     summary = daily_ret_statistic(factor_ret)
     summary.to_csv(f'output/regression/test_{label_day}_{model}_{train_period}_{rolling_period}.csv')
-    net_value_plot(ans, factor_ret, data_dict, assets, benchmark=True, save=True,
+    net_value_plot(ans, factor_ret, data.data_dict, assets, benchmark=True, save=True,
                    name=f"test_{label_day}_{model}_{train_period}_{rolling_period}",
                    path='./output/regression/backtest/')

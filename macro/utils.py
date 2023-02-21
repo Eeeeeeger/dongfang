@@ -18,6 +18,60 @@ plt.rcParams['axes.unicode_minus'] = False
 plt.style.use('bmh')
 colors = ['lightseagreen', 'lightcoral', 'slategrey']
 
+class DataGenerator:
+    def __init__(self):
+        factors = pd.read_csv('./input/macroFactorDf20230202_1.csv', index_col=0, parse_dates=True)
+        targets = pd.read_csv('./input/index.csv', index_col=0, parse_dates=True)
+        data = pd.concat([factors, targets], axis=1)
+        data = pd.concat([data.iloc[:-1].dropna(), data.iloc[-1:]], axis=0)
+        # self.assets = targets.columns.tolist()
+        self.assets = ['000905.SH', 'NH0100.NHF', 'Bond']
+        self.labels_dict = dict(zip(self.assets, [-1, 0, 1]))
+        self.assets_dict = dict(zip([-1,0,1], self.assets))
+        self.macro = factors.columns.tolist()
+
+        # merge new features by first differencing
+        self.data = data.join(data[self.macro].diff().rename(columns=dict(zip(self.macro, map(lambda x: f'd_{x}', self.macro)))))
+        self.features = self.macro + list(map(lambda x: f'd_{x}', self.macro))
+        self.data_dict = {'input': self.data.copy(), 'ret1d': self.data[self.assets].copy(), 'ret3d': self.data[self.assets].copy(),
+                     'ret5d': self.data[self.assets].copy(),
+                     'ret20d': self.data[self.assets].copy(),
+                     'sign1d': self.data[self.assets].copy(), 'sign3d': self.data[self.assets].copy(), 'sign5d': self.data[self.assets].copy(),
+                     'sign20d': self.data[self.assets].copy()}
+
+        self.data.dropna(subset=self.features, how='any', inplace=True)
+        self.dates = data.index.tolist()
+
+    def create_labels(self):
+        for asset in self.assets:
+            self.data_dict['ret1d'][asset] = self.data_dict['input'][asset].pct_change(1).shift(-1)
+            self.data_dict['ret3d'][asset] = self.data_dict['input'][asset].pct_change(3).shift(-3)
+            self.data_dict['ret5d'][asset] = self.data_dict['input'][asset].pct_change(5).shift(-5)
+            self.data_dict['ret20d'][asset] = self.data_dict['input'][asset].pct_change(20).shift(-20)
+            self.data_dict['sign1d'][asset] = np.sign(self.data_dict['ret1d'][asset])
+            self.data_dict['sign3d'][asset] = np.sign(self.data_dict['ret3d'][asset])
+            self.data_dict['sign5d'][asset] = np.sign(self.data_dict['ret5d'][asset])
+            self.data_dict['sign20d'][asset] = np.sign(self.data_dict['ret20d'][asset])
+
+        # padding the index
+        for k, v in self.data_dict.items():
+            self.data_dict[k] = v.loc[v.index.intersection(self.data.index)]
+
+    def create_relative_labels(self):
+        for asset in self.assets:
+            self.data_dict['ret1d'][asset] = self.data_dict['input'][asset].pct_change(1).shift(-1)
+            self.data_dict['ret3d'][asset] = self.data_dict['input'][asset].pct_change(3).shift(-3)
+            self.data_dict['ret5d'][asset] = self.data_dict['input'][asset].pct_change(5).shift(-5)
+            self.data_dict['ret20d'][asset] = self.data_dict['input'][asset].pct_change(20).shift(-20)
+        self.data_dict['sign1d'] = self.data_dict['ret1d'].idxmax(axis=1).apply(lambda x: self.labels_dict.get(x, np.nan))
+        self.data_dict['sign3d'] = self.data_dict['ret3d'].idxmax(axis=1).apply(lambda x: self.labels_dict.get(x, np.nan))
+        self.data_dict['sign5d'] = self.data_dict['ret5d'].idxmax(axis=1).apply(lambda x: self.labels_dict.get(x, np.nan))
+        self.data_dict['sign20d'] = self.data_dict['ret20d'].idxmax(axis=1).apply(lambda x: self.labels_dict.get(x, np.nan))
+
+        # padding the index
+        for k, v in self.data_dict.items():
+            self.data_dict[k] = v.loc[v.index.intersection(self.data.index)]
+
 
 def daily_ret_statistic(factor_ret: pd.Series) -> pd.DataFrame:
     ################################# performance ##################################
