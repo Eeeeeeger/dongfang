@@ -7,6 +7,7 @@ from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 from utils import *
+
 '''
 initialize data
 '''

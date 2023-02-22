@@ -24,6 +24,20 @@
             </Attribute>
           </value>
         </entry>
+        <entry key="\macro\output\regression\test_20_LinearRegression_120_20.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\macro\output\regression\test_5_LinearRegression_120_5.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
       </map>
     </option>
   </component>
