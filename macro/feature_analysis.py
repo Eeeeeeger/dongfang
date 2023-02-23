@@ -1,10 +1,8 @@
-import pandas as pd
-
-from utils import *
+import scipy.stats as stats
 from statsmodels.tsa.stattools import adfuller
 from statsmodels.tsa.stattools import grangercausalitytests
-import scipy.stats as stats
-from loguru import logger
+
+from utils import *
 
 '''
 initialize data
@@ -18,8 +16,9 @@ train_data_dict = {}
 test_data_dict = {}
 for k, v in data.data_dict.items():
     train_data_dict[k], test_data_dict[k] = v.iloc[:int(len(v) * 0.7)], v.iloc[
-
                                                                         int(len(v) * 0.7):]
+
+
 def adfuller_test(x):
     return True if adfuller(x)[1] < 0.05 else False
 
@@ -45,7 +44,7 @@ def correlation_test(y, x):
 
 def trend_test(y, x):
     lt = []
-    for para in [1,3,6]:
+    for para in [1, 3, 6]:
         trend = pd.Series(index=x.index, data=0)
         trend.loc[(np.sign(x.pct_change()).rolling(para).sum() == para)] = 1
         trend.loc[(np.sign(x.pct_change()).rolling(para).sum() == -para)] = -1
@@ -57,15 +56,16 @@ def trend_test(y, x):
 
 def rolling_test(y, x):
     lt = []
+    temp = stats.zscore(x)
     for period in [20, 60, 120]:
         for para in [0.1, 0.2, 0.5]:
             rolling = pd.Series(index=x.index, data=0)
-            rolling.loc[x.pct_change().rolling(period).sum() >= para] = 1
-            rolling.loc[x.pct_change().rolling(period).sum() <= -para] = -1
+            rolling[temp.pct_change(period) >= para] = 1
+            rolling[temp.pct_change(period) <= -para] = -1
             rolling.dropna(inplace=True)
             y_cor = y.loc[rolling.index].copy()
             lt.append(correlation_test(y_cor, rolling))
-    return np.array(lt).sum() > int(len(lt)/2)
+    return np.array(lt).sum() > int(len(lt) / 3)
 
 
 def extent_test(y, x):
@@ -85,17 +85,19 @@ def zscore_test(y, x):
     for period in [60, 120]:
         def _zscore_percentile(x):
             temp = stats.zscore(x)
-            if x.iloc[-1]<=temp.quantile(0.25):
+            if x.iloc[-1] <= temp.quantile(0.25):
                 return -1
-            elif x.iloc[-1]>=temp.quantile(0.75):
+            elif x.iloc[-1] >= temp.quantile(0.75):
                 return 1
             else:
                 return 0
+
         zscore = x.rolling(period).apply(_zscore_percentile)
         zscore.dropna(inplace=True)
         y_cor = y.loc[zscore.index].copy()
         lt.append(correlation_test(y_cor, zscore))
     return np.array(lt).any()
+
 
 ret = 'ret20d'
 
@@ -132,4 +134,5 @@ for feature in features:
             tests.loc[(asset, feature), 'extent'] = 1 if extent_test(y, x) else 0
             tests.loc[(asset, feature), 'zscore'] = 1 if zscore_test(y, x) else 0
 
+tests['event'] = tests[['trend','rolling','extent','zscore']].sum(axis=1)
 print(tests)
