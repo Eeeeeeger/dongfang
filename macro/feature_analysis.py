@@ -3,7 +3,7 @@ from statsmodels.tsa.stattools import adfuller
 from statsmodels.tsa.stattools import grangercausalitytests
 
 from utils import *
-
+pd.set_option('display.max_columns', 100)
 '''
 initialize data
 '''
@@ -65,7 +65,7 @@ def rolling_test(y, x):
             rolling.dropna(inplace=True)
             y_cor = y.loc[rolling.index].copy()
             lt.append(correlation_test(y_cor, rolling))
-    return np.array(lt).sum() > int(len(lt) / 3)
+    return np.array(lt).sum() >= int(len(lt) / 3)
 
 
 def extent_test(y, x):
