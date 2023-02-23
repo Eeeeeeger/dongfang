@@ -3,7 +3,6 @@ import pandas as pd
 from utils import *
 from statsmodels.tsa.stattools import adfuller
 from statsmodels.tsa.stattools import grangercausalitytests
-
 import scipy.stats as stats
 from loguru import logger
 
@@ -65,9 +64,8 @@ def rolling_test(y, x):
             rolling.loc[x.pct_change().rolling(period).sum() <= -para] = -1
             rolling.dropna(inplace=True)
             y_cor = y.loc[rolling.index].copy()
-
             lt.append(correlation_test(y_cor, rolling))
-    return np.array(lt).any()
+    return np.array(lt).sum() > int(len(lt)/2)
 
 
 def extent_test(y, x):
@@ -84,13 +82,19 @@ def extent_test(y, x):
 
 def zscore_test(y, x):
     lt = []
-    for para in [0.05, 0.1, 0.2]:
-        extent = pd.Series(index=x.index, data=0)
-        extent.loc[x.pct_change() >= para] = 1
-        extent.loc[x.pct_change() <= -para] = -1
-        extent.dropna(inplace=True)
-        y = y.loc[extent.index]
-        lt.append(correlation_test(y, extent))
+    for period in [60, 120]:
+        def _zscore_percentile(x):
+            temp = stats.zscore(x)
+            if x.iloc[-1]<=temp.quantile(0.25):
+                return -1
+            elif x.iloc[-1]>=temp.quantile(0.75):
+                return 1
+            else:
+                return 0
+        zscore = x.rolling(period).apply(_zscore_percentile)
+        zscore.dropna(inplace=True)
+        y_cor = y.loc[zscore.index].copy()
+        lt.append(correlation_test(y_cor, zscore))
     return np.array(lt).any()
 
 ret = 'ret20d'
@@ -115,6 +119,7 @@ for feature in features:
                 tests.loc[(asset, feature), 'trend'] = 1 if trend_test(y, x) else 0
                 tests.loc[(asset, feature), 'rolling'] = 1 if rolling_test(y, x) else 0
                 tests.loc[(asset, feature), 'extent'] = 1 if extent_test(y, x) else 0
+                tests.loc[(asset, feature), 'zscore'] = 1 if zscore_test(y, x) else 0
 
     else:
         tests.loc[[(asset, feature) for asset in assets], 'adf'] = 0
@@ -123,7 +128,8 @@ for feature in features:
             y = train_data_dict[ret][asset]
             tests.loc[(asset, feature), 'spearman'] = 1 if correlation_test(y, x) else 0
             tests.loc[(asset, feature), 'trend'] = 1 if trend_test(y, x) else 0
-            tests.loc[(asset, feature), 'extent'] = 1 if extent_test(y, x) else 0
             tests.loc[(asset, feature), 'rolling'] = 1 if rolling_test(y, x) else 0
+            tests.loc[(asset, feature), 'extent'] = 1 if extent_test(y, x) else 0
+            tests.loc[(asset, feature), 'zscore'] = 1 if zscore_test(y, x) else 0
 
-logger.info(tests)
+print(tests)
