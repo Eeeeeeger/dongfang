@@ -86,9 +86,9 @@ def zscore_test(y, x):
     for period in [60, 120]:
         def _zscore_percentile(x):
             temp = stats.zscore(x)
-            if x.iloc[-1] <= temp.quantile(0.25):
+            if x.iloc[-1] <= temp.quantile(0.2):
                 return -1
-            elif x.iloc[-1] >= temp.quantile(0.75):
+            elif x.iloc[-1] >= temp.quantile(0.8):
                 return 1
             else:
                 return 0
