@@ -9,7 +9,7 @@ initialize data
 '''
 data = DataGenerator()
 data.create_labels()
-features = data.features
+features = data.macro
 assets = data.assets
 
 train_data_dict = {}
