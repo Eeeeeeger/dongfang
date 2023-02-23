@@ -4,6 +4,7 @@ from statsmodels.tsa.stattools import grangercausalitytests
 
 from utils import *
 pd.set_option('display.max_columns', 100)
+pd.set_option('expand_frame_repr', False)
 '''
 initialize data
 '''
