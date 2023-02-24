@@ -45,6 +45,13 @@
             </Attribute>
           </value>
         </entry>
+        <entry key="\snowball\bp_prob.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
         <entry key="\snowball\input\10Y.csv">
           <value>
             <Attribute>
