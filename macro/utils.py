@@ -19,8 +19,8 @@ plt.style.use('bmh')
 colors = ['lightseagreen', 'lightcoral', 'slategrey']
 
 class DataGenerator:
-    def __init__(self):
-        factors = pd.read_csv('./input/macroFactorDf20230202_1.csv', index_col=0, parse_dates=True)
+    def __init__(self, data_path: str= './input/macroFactorDf20230202_1.csv'):
+        factors = pd.read_csv(data_path, index_col=0, parse_dates=True)
         targets = pd.read_csv('./input/index.csv', index_col=0, parse_dates=True)
         data = pd.concat([factors, targets], axis=1)
         data = pd.concat([data.iloc[:-1].dropna(), data.iloc[-1:]], axis=0)

@@ -10,7 +10,7 @@ initialize data
 '''
 data = DataGenerator()
 data.create_labels()
-features = data.macro
+features = data.features
 assets = data.assets
 
 train_data_dict = {}
@@ -136,4 +136,5 @@ for feature in features:
             tests.loc[(asset, feature), 'zscore'] = 1 if zscore_test(y, x) else 0
 
 tests['event'] = tests[['trend','rolling','extent','zscore']].sum(axis=1)
-print(tests)
+tests['pass'] = np.logical_or(tests[['spearman', 'event']].sum(axis=1) >= 2, tests['granger'] > 0).astype(int)
+tests.to_csv('./features_selection.csv')

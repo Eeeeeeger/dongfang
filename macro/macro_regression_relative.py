@@ -9,12 +9,12 @@ from utils import *
 '''
 initialize data
 '''
-data = DataGenerator()
+data = DataGenerator(data_path='./input/daily_macro_factor5.csv')
 data.create_relative_labels()
 features = data.features
 assets = data.assets
 assets_dict = data.assets_dict
-
+output_path = './output/my_macro_factor5'
 
 def _regression(train_data: pd.DataFrame, predict_data: pd.DataFrame, indices: list,
                 model: LogisticRegression):
@@ -100,7 +100,7 @@ for label_day in [1, 3, 5, 20]:
                 bt_lt.append(summary.iloc[-1])
                 net_value_plot(ans, factor_ret, data.data_dict, assets, benchmark=True, save=True,
                                name=f"{label_day}_{model}_{train_period}_{rolling_period}",
-                               path='./output/regression_relative/backtest/')
+                               path=f'{output_path}/backtest/')
                 ## 预测准确率
                 # sign = train_data_dict['sign1d'].copy()
                 # acc_rate = (ans.idxmax(axis=1).apply(lambda x:labels_dict[x]) == sign.loc[sign.index.intersection(ans.index)]).sum() / len(ans)
@@ -111,13 +111,13 @@ indices = pd.MultiIndex.from_product(
 bt_res.columns = indices
 # acc_res.loc['mean'] = acc_res.mean()
 # acc_res.T.to_csv(f'output/regression_relative/acc.csv')
-bt_res.T.to_csv(f'output/regression_relative/bt.csv')
+bt_res.T.to_csv(f'{output_path}/bt.csv')
 
 '''
 TEST PART
 '''
 # pick the top model according to sharpe ratio to get backtest results in test dataset
-bt_res = pd.read_csv(f"output/regression_relative/bt.csv", index_col=[0, 1, 2]).T
+bt_res = pd.read_csv(f"{output_path}/bt.csv", index_col=[0, 1, 2]).T
 for each in bt_res.T['sharpe'].nlargest(1).index.to_list():
     print(each)
     label_day, train_period, rolling_period = each
@@ -157,7 +157,7 @@ for each in bt_res.T['sharpe'].nlargest(1).index.to_list():
     factor_ret = pd.Series(index=ans.index, name='ret', data=np.diagonal(
         ans.idxmax(axis=1).apply(lambda x: data.data_dict['ret1d'].loc[:, x]).loc[:, ans.index.tolist()])).dropna()
     summary = daily_ret_statistic(factor_ret)
-    summary.to_csv(f'output/regression_relative/test_{label_day}_{model}_{train_period}_{rolling_period}.csv')
+    summary.to_csv(f'{output_path}/test_{label_day}_{model}_{train_period}_{rolling_period}.csv')
     net_value_plot(ans, factor_ret, data.data_dict, assets, benchmark=True, save=True,
                    name=f"test_{label_day}_{model}_{train_period}_{rolling_period}",
-                   path='./output/regression_relative/backtest/')
+                   path=f'{output_path}/backtest/')
